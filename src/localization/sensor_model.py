@@ -74,24 +74,25 @@ class SensorModel:
 
         for zk in range(self.table_width):
             for d in range(self.table_width):
-                phittable[zk][d] = (np.exp(-(zk-d)**2/(2*self.sigma_hit**2)))/(2*3.14*self.sigma_hit**2)**0.5
-        print(phittable)
-        np.transpose(phittable)
-        print(phittable)
+                phittable[zk][d] = np.exp(-(zk-d)**2/(2*self.sigma_hit**2)) #/(2*3.14*self.sigma_hit**2)**0.5
+        
         for i in range(len(phittable)):
             phittable[i] /= sum(phittable[i])     
-        np.transpose(phittable)
+        print(phittable)
 
         for zk in range(self.table_width):
             for d in range(self.table_width):
                 pmax = 1 if zk == (self.table_width - 1) else 0
                 pshort = 2.0*(1-zk/d)/d if (0 <= zk and zk <= d and d != 0) else 0
-                prand = 1.0/self.table_width
+                prand = 1.0/self.table_width if (0 <= zk and zk <= self.table_width) else 0
                 probtable[zk][d] = self.alpha_hit*phittable[zk][d] + self.alpha_short*pshort + self.alpha_max*pmax + self.alpha_rand*prand
-        np.transpose(probtable)
+
+        trans = probtable.transpose()
+        print(trans)
         for i in range(len(probtable)):
-            probtable[i] /= sum(probtable[i]) 
-        np.transpose(probtable)
+            trans[i] /= sum(trans[i]) 
+        probtable = trans.transpose()
+        print(probtable)
 
         self.sensor_model_table = probtable
         
