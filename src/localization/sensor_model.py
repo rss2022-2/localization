@@ -23,7 +23,7 @@ class SensorModel:
         self.alpha_short = 0.07
         self.alpha_max = 0.07
         self.alpha_rand = 0.12
-        self.sigma_hit = 8
+        self.sigma_hit = 8.0
 
         # Your sensor table will be a `table_width` x `table_width` np array:
         self.table_width = 201
@@ -74,25 +74,22 @@ class SensorModel:
 
         for zk in range(self.table_width):
             for d in range(self.table_width):
-                phittable[zk][d] = np.exp(-(zk-d)**2/(2*self.sigma_hit**2))/(2*3.14*self.sigma_hit**2)**0.5
+                phittable[d][zk] = np.exp(-(zk-d)**2/(2*self.sigma_hit**2))
         
-        transt = phittable.transpose()
         for i in range(len(phittable)):
-            transt[i] /= sum(transt[i])
-        phittable = transt.transpose()
+            phittable[i] /= sum(phittable[i])
+        phittable = phittable.transpose()
 
         for zk in range(self.table_width):
             for d in range(self.table_width):
                 pmax = 1 if zk == (self.table_width - 1) else 0
                 pshort = 2.0*(1-zk/d)/d if (0 <= zk and zk <= d and d != 0) else 0
                 prand = 1.0/self.table_width if (0 <= zk and zk <= self.table_width) else 0
-                probtable[zk][d] = self.alpha_hit*phittable[zk][d] + self.alpha_short*pshort + self.alpha_max*pmax + self.alpha_rand*prand
-
-        trans = probtable.transpose()
+                probtable[d][zk] = self.alpha_hit*phittable[zk][d] + self.alpha_short*pshort + self.alpha_max*pmax + self.alpha_rand*prand
+        
         for i in range(len(probtable)):
-            trans[i] /= sum(trans[i]) 
-        probtable = trans.transpose()
-
+            probtable[i] /= sum(probtable[i]) 
+        probtable = probtable.transpose()
         self.sensor_model_table = probtable
         
 
