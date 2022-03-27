@@ -69,29 +69,19 @@ class SensorModel:
         returns:
             No return type. Directly modify `self.sensor_model_table`.
         """
-        probtable = np.empty((self.table_width, self.table_width), dtype=np.float64)
-        phittable = np.empty((self.table_width, self.table_width), dtype=np.float64)
+        self.sensor_model_table = np.empty((self.table_width,self.table_width), dtype=np.float64)
 
-        for zk in range(self.table_width):
-            for d in range(self.table_width):
-                phittable[d][zk] = np.exp(-(zk-d)**2/(2*self.sigma_hit**2))
-        
-        for i in range(len(phittable)):
-            phittable[i] /= sum(phittable[i])
-        phittable = phittable.transpose()
-
-        for zk in range(self.table_width):
-            for d in range(self.table_width):
+        for d in range(self.table_width):
+            phittable = np.empty(self.table_width)
+            for zk in range(self.table_width):
+                phittable[zk] = np.exp(-(zk-d)**2/(2.0*self.sigma_hit**2))/np.sqrt(2.0*np.pi*self.sigma_hit**2)
                 pmax = 1 if zk == (self.table_width - 1) else 0
-                pshort = 2.0*(1-zk/d)/d if (0 <= zk and zk <= d and d != 0) else 0
-                prand = 1.0/self.table_width if (0 <= zk and zk <= self.table_width) else 0
-                probtable[d][zk] = self.alpha_hit*phittable[zk][d] + self.alpha_short*pshort + self.alpha_max*pmax + self.alpha_rand*prand
-        
-        for i in range(len(probtable)):
-            probtable[i] /= sum(probtable[i]) 
-        probtable = probtable.transpose()
-        self.sensor_model_table = probtable
-        
+                pshort = 2*(1-zk*1.0/d)/d if (zk <= d and d != 0) else 0
+                prand = 1.0/(self.table_width-1)
+                self.sensor_model_table[zk][d] = self.alpha_short*pshort + self.alpha_max*pmax + self.alpha_rand*prand
+            phittable = phittable/(phittable.sum())
+            self.sensor_model_table[:,d] = self.sensor_model_table[:,d] + phittable*self.alpha_hit
+            self.sensor_model_table[:,d] = self.sensor_model_table[:,d]/(self.sensor_model_table[:,d].sum())
 
     def evaluate(self, particles, observation):
         """
@@ -159,20 +149,3 @@ class SensorModel:
         self.map_set = True
 
         print("Map initialized")
-
-# def main():
-#     self.sensor_model = SensorModel()
-#     map_topic = rospy.get_param("~map_topic")
-#     map_msg = rospy.wait_for_message(map_topic, OccupancyGrid)
-#     self.sensor_model.map_callback(map_msg)
-#     self.sensor_model.alpha_hit = 0.74
-#     self.sensor_model.alpha_short = 0.07
-#     self.sensor_model.alpha_max = 0.07
-#     self.sensor_model.alpha_rand = 0.12
-#     self.sensor_model.sigma_hit = 8.0
-#     self.sensor_model.table_width = 201
-#     self.sensor_model.precompute_sensor_model()
-
-
-# if __name__ == "__main__":
-#     main()
