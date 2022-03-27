@@ -78,7 +78,7 @@ class SensorModel:
                 pmax = 1 if zk == (self.table_width - 1) else 0
                 pshort = 2*(1-zk*1.0/d)/d if (zk <= d and d != 0) else 0
                 prand = 1.0/(self.table_width-1)
-                self.sensor_model_table[zk][d] = self.alpha_short*pshort + self.alpha_max*pmax + self.alpha_rand*prand
+                self.sensor_model_table[zk][d] =  self.alpha_max*pmax + self.alpha_short*pshort + self.alpha_rand*prand
             phittable = phittable/(phittable.sum())
             self.sensor_model_table[:,d] = self.sensor_model_table[:,d] + phittable*self.alpha_hit
             self.sensor_model_table[:,d] = self.sensor_model_table[:,d]/(self.sensor_model_table[:,d].sum())
