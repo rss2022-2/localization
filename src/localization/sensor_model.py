@@ -137,15 +137,16 @@ class SensorModel:
         # scale observation
         observation = [obs*1.0/meter_to_pixel for obs in observation]
         observation = [0 if obs < 0 else (z_max if obs > z_max else obs) for obs in observation]
-        
+    
         probabilities = np.zeros(len(scans))
         for par in range(len(scans)):
-            prob = 1
+            log_prob = 0
             for beam in range(self.num_beams_per_particle):
-                zk = int(round(scans[par, beam])) # measured distance
-                d = int(round(observation[beam])) # ground-truth distance
-                prob *= self.sensor_model_table[zk][d]
-            probabilities[par] = prob
+                d = int(round(scans[par, beam])) # measured distance
+                zk = int(round(observation[beam])) # ground-truth distance
+                log_prob += np.log(self.sensor_model_table[zk][d])
+            probabilities[par] = np.exp(log_prob)
+            probabilities[par] = np.power(probabilities[par], 1/2.2)
 
         return probabilities
         ####################################
