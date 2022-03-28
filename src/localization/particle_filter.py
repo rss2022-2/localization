@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import rospy
 from sensor_model import SensorModel
 from motion_model import MotionModel
@@ -8,6 +6,7 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from tf.transformations import euler_from_quaternion
+from tf.transformations import quaternion_from_euler
 
 import numpy as np
 
@@ -69,6 +68,12 @@ class ParticleFilter:
         # and the particle_filter_frame.
         self.particles = np.zeros((ParticleFilter.NUM_PARTICLES, 3))
         self.probabilities = np.ones(ParticleFilter.NUM_PARTICLES)/ParticleFilter.NUM_PARTICLES
+        self.odom_msg = Odometry()
+        self.odom_msg.header.seq = 0
+        self.odom_msg.header.frame_id = "/map"
+        self.odom_msg.child_frame_id = self.particle_filter_frame
+        
+        rospy.Timer(rospy.Duration(1), self.pose_odom_callback)
 
 
     def lidar_callback(self, lidar_msg: LaserScan):
@@ -99,7 +104,23 @@ class ParticleFilter:
         self.particles = self.motion_model.evaluate(self.particles, [dx, dy, dt])
 
 
-    def get_average_pose(self):
+    def pose_odom_callback(self):
+        average_pose = self.__get_average_pose()
+        
+        self.odom_msg.pose.pose.position.x = average_pose[0]
+        self.odom_msg.pose.pose.position.y = average_pose[1]
+        [qx, qy, qz, qw] = quaternion_from_euler(0, 0, average_pose[2])
+        self.odom_msg.pose.pose.orientation.x = qx
+        self.odom_msg.pose.pose.orientation.y = qy
+        self.odom_msg.pose.pose.orientation.z = qz
+        self.odom_msg.pose.pose.orientation.w = qw
+
+        self.odom_msg.header.seq += 1
+        self.odom_msg.header.stamp = rospy.Time.now()
+        self.odom_pub.publish(self.odom_msg)
+
+
+    def __get_average_pose(self):
         probabilities_square = self.probabilities**2
         average_probabilities = probabilities_square/sum(probabilities_square)
         weighted_xs = self.particles[:,0] * average_probabilities
