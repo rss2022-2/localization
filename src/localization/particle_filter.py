@@ -1,3 +1,4 @@
+#!/usr/bin/env python2
 import rospy
 from sensor_model import SensorModel
 from motion_model import MotionModel
@@ -29,6 +30,16 @@ class ParticleFilter:
         #     information, and *not* use the pose component.
         scan_topic = rospy.get_param("~scan_topic", "/scan")
         odom_topic = rospy.get_param("~odom_topic", "/odom")
+
+        self.motion_model = MotionModel()
+        self.sensor_model = SensorModel()
+        self.particles = np.zeros((ParticleFilter.NUM_PARTICLES, 3))
+        self.probabilities = np.ones(ParticleFilter.NUM_PARTICLES)/ParticleFilter.NUM_PARTICLES
+        self.odom_msg = Odometry()
+        self.odom_msg.header.seq = 0
+        self.odom_msg.header.frame_id = "/map"
+        self.odom_msg.child_frame_id = self.particle_filter_frame
+
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
                                           self.lidar_callback, # TODO: Fill this in
                                           queue_size=1)
@@ -54,8 +65,8 @@ class ParticleFilter:
         self.odom_pub  = rospy.Publisher("/pf/pose/odom", Odometry, queue_size = 1)
         
         # Initialize the models
-        self.motion_model = MotionModel()
-        self.sensor_model = SensorModel()
+        # self.motion_model = MotionModel()
+        # self.sensor_model = SensorModel()
 
         # Implement the MCL algorithm
         # using the sensor model and the motion model
@@ -66,33 +77,33 @@ class ParticleFilter:
         #
         # Publish a transformation frame between the map
         # and the particle_filter_frame.
-        self.particles = np.zeros((ParticleFilter.NUM_PARTICLES, 3))
-        self.probabilities = np.ones(ParticleFilter.NUM_PARTICLES)/ParticleFilter.NUM_PARTICLES
-        self.odom_msg = Odometry()
-        self.odom_msg.header.seq = 0
-        self.odom_msg.header.frame_id = "/map"
-        self.odom_msg.child_frame_id = self.particle_filter_frame
+        # self.particles = np.zeros((ParticleFilter.NUM_PARTICLES, 3))
+        # self.probabilities = np.ones(ParticleFilter.NUM_PARTICLES)/ParticleFilter.NUM_PARTICLES
+        # self.odom_msg = Odometry()
+        # self.odom_msg.header.seq = 0
+        # self.odom_msg.header.frame_id = "/map"
+        # self.odom_msg.child_frame_id = self.particle_filter_frame
         
-        rospy.Timer(rospy.Duration(1), self.pose_odom_callback)
+        rospy.Timer(rospy.Duration(1.0/20.0), self.pose_odom_callback)
 
 
-    def lidar_callback(self, lidar_msg: LaserScan):
+    def lidar_callback(self, lidar_msg):
         observation = lidar_msg.ranges
         probabilities = self.sensor_model.evaluate(self.particles, observation)
         normalized_probabilities = probabilities/sum(probabilities)
         selected_indices = np.random.choice(ParticleFilter.NUM_PARTICLES, ParticleFilter.NUM_PARTICLES, p=normalized_probabilities)
-        self.particles = [self.particles[i] for i in selected_indices]
-        self.probabilities = [probabilities[i] for i in selected_indices]
+        self.particles = np.array([self.particles[i] for i in selected_indices])
+        self.probabilities = np.array([probabilities[i] for i in selected_indices])
 
 
-    def odom_callback(self, odom_msg: Odometry):
+    def odom_callback(self, odom_msg):
         dx = odom_msg.twist.twist.linear.x
         dy = odom_msg.twist.twist.linear.y
         dt = odom_msg.twist.twist.angular.z
-        self.particles = self.motion_model.evaluate(self.particles, [dx, dy, dt])
+        self.particles = np.array(self.motion_model.evaluate(self.particles, [dx, dy, dt]))
 
 
-    def initpose_callback(self, pose_msg: PoseWithCovarianceStamped):
+    def initpose_callback(self, pose_msg):
         dx = pose_msg.pose.pose.position.x
         dy = pose_msg.pose.pose.position.x
         dt = euler_from_quaternion([
@@ -101,10 +112,10 @@ class ParticleFilter:
             pose_msg.pose.pose.orientation.z,
             pose_msg.pose.pose.orientation.w
         ])[0]
-        self.particles = self.motion_model.evaluate(self.particles, [dx, dy, dt])
+        self.particles = np.array(self.motion_model.evaluate(self.particles, [dx, dy, dt]))
+        rospy.loginfo(self.particles)
 
-
-    def pose_odom_callback(self):
+    def pose_odom_callback(self, event):
         average_pose = self.__get_average_pose()
         
         self.odom_msg.pose.pose.position.x = average_pose[0]
@@ -118,6 +129,7 @@ class ParticleFilter:
         self.odom_msg.header.seq += 1
         self.odom_msg.header.stamp = rospy.Time.now()
         self.odom_pub.publish(self.odom_msg)
+        rospy.loginfo(self.odom_msg)
 
 
     def __get_average_pose(self):

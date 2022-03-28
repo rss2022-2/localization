@@ -30,7 +30,7 @@ class MotionModel:
         dy = odometry[1]
         dt = odometry[2]
 
-        res = [0, 0, 0]
+        res = np.zeros(3)
         abs_dx = dx*np.cos(t) - dy*np.sin(t)
         abs_dy = dx*np.sin(t) + dy*np.cos(t)
         res[0] = x + MotionModel.__sample_normal(abs_dx, self.a[0])
