@@ -17,12 +17,6 @@ class SensorModel:
         self.scan_field_of_view = rospy.get_param("~scan_field_of_view")
         self.lidar_scale_to_map_scale = rospy.get_param("~lidar_scale_to_map_scale")
 
-        # self.map_topic = "/map"
-        # self.num_beams_per_particle = 100
-        # self.scan_theta_discretization = 500
-        # self.scan_field_of_view = 4.71
-        # self.lidar_scale_to_map_scale = 1
-
         ####################################
         # TODO
         # Adjust these parameters
@@ -34,10 +28,9 @@ class SensorModel:
 
         # Your sensor table will be a `table_width` x `table_width` np array:
         self.table_width = 201
-
-        self.map_resolution = None
         ####################################
 
+        self.map_resolution = None
         # Precompute the sensor model table
         self.sensor_model_table = None
         self.precompute_sensor_model()
@@ -81,17 +74,22 @@ class SensorModel:
         self.sensor_model_table = np.empty((self.table_width,self.table_width), dtype=np.float64)
 
         for d in range(self.table_width):
+            
             phittable = np.empty(self.table_width)
+            
             for zk in range(self.table_width):
                 phittable[zk] = np.exp(-(zk-d)**2/(2.0*self.sigma_hit**2))/np.sqrt(2.0*np.pi*self.sigma_hit**2)
                 pmax = 1 if zk == (self.table_width - 1) else 0
                 pshort = 2*(1-zk*1.0/d)/d if (zk <= d and d != 0) else 0
                 prand = 1.0/(self.table_width-1)
-                self.sensor_model_table[zk][d] =  self.alpha_max*pmax + self.alpha_short*pshort + self.alpha_rand*prand
+                
+                self.sensor_model_table[zk][d] = self.alpha_short*pshort + self.alpha_max*pmax + self.alpha_rand*prand
+                
             phittable = phittable/(phittable.sum())
-            self.sensor_model_table[:,d] = self.sensor_model_table[:,d] + phittable*self.alpha_hit
+            
+            self.sensor_model_table[:,d] += phittable*self.alpha_hit
             self.sensor_model_table[:,d] = self.sensor_model_table[:,d]/(self.sensor_model_table[:,d].sum())
-    
+
     def evaluate(self, particles, observation):
         """
         Evaluate how likely each particle is given
@@ -122,33 +120,23 @@ class SensorModel:
         #
         # You will probably want to use this function
         # to perform ray tracing from all the particles.
-        # This produces a matrix of size N x num_beams_per_particle 
+        # This produces a matrix of size N x num_beams_per_particle
 
-        z_max = self.table_width - 1
-        ## REMOVE:
-        # self.map_resolution = 0.0504
-        meter_to_pixel = self.map_resolution*self.lidar_scale_to_map_scale
-
-        scans = self.scan_sim.scan(particles)
-        for par in range(len(scans)):
-            scans[par] = [value*1.0/meter_to_pixel for value in scans[par]]
-            scans[par] = [0 if value < 0 else z_max if value > z_max else value for value in scans[par]]
-
-        # scale observation
-        observation = [obs*1.0/meter_to_pixel for obs in observation]
-        observation = [0 if obs < 0 else (z_max if obs > z_max else obs) for obs in observation]
-    
+        scans = np.clip(self.scan_sim.scan(particles)/(self.map_resolution*self.lidar_scale_to_map_scale), 0, self.table_width - 1)
+        observation = np.clip(observation/(self.map_resolution*self.lidar_scale_to_map_scale), 0, self.table_width - 1)
         probabilities = np.zeros(len(scans))
-        for par in range(len(scans)):
+        
+        for i in range(len(scans)):
+            
             log_prob = 0
-            for beam in range(self.num_beams_per_particle):
-                d = int(round(scans[par, beam])) # measured distance
-                zk = int(round(observation[beam])) # ground-truth distance
-                log_prob += np.log(self.sensor_model_table[zk][d])
-            probabilities[par] = np.exp(log_prob)
-            probabilities[par] = np.power(probabilities[par], 1/2.2)
+            
+            for j in range(self.num_beams_per_particle):
+                log_prob += np.log(self.sensor_model_table[int(round(observation[j]))][int(round(scans[i, j]))])
+                
+            probabilities[i] = log_prob
+            
+        return np.exp(probabilities)**(1.0/2.2)
 
-        return probabilities
         ####################################
 
     def map_callback(self, map_msg):
@@ -156,6 +144,7 @@ class SensorModel:
         self.map = np.array(map_msg.data, np.double)/100.
         self.map = np.clip(self.map, 0, 1)
         self.map_resolution = map_msg.info.resolution
+
         # Convert the origin to a tuple
         origin_p = map_msg.info.origin.position
         origin_o = map_msg.info.origin.orientation
