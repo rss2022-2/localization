@@ -1,0 +1,2 @@
+float32 distance_err
+float32 rotation_err
