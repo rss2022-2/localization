@@ -51,12 +51,12 @@ class ParticleFilter:
         self.probabilities = np.ones(ParticleFilter.NUM_PARTICLES)/ParticleFilter.NUM_PARTICLES
         self.odom_msg = Odometry()
         self.odom_msg.header.seq = 0
-        self.odom_msg.header.frame_id = "map"
+        self.odom_msg.header.frame_id = "/map"
         self.odom_msg.child_frame_id = self.particle_filter_frame
         
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.transform_msg = TransformStamped()
-        self.transform_msg.header.frame_id = "map"
+        self.transform_msg.header.frame_id = "/map"
         self.transform_msg.child_frame_id = self.particle_filter_frame
 
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
@@ -89,7 +89,7 @@ class ParticleFilter:
 
     def lidar_callback(self, lidar_msg):
         observation = lidar_msg.ranges
-        probabilities = self.sensor_model.evaluate(self.particles, observation)
+        probabilities = self.sensor_model.evaluate(self.particles, np.array(observation))
         if probabilities is not None:
             normalized_probabilities = probabilities/sum(probabilities)
             selected_indices = np.random.choice(ParticleFilter.NUM_PARTICLES, ParticleFilter.NUM_PARTICLES, p=normalized_probabilities)
@@ -117,16 +117,14 @@ class ParticleFilter:
         ])[2]
         self.particles = self.motion_model.evaluate(ParticleFilter.INIT_PARTICLES, [dx, dy, dt])
 
-        
-
 
     def pose_odom_callback(self, event):
         average_pose = self.__get_average_pose()
+        [qx, qy, qz, qw] = quaternion_from_euler(0, 0, average_pose[2])
 
         self.transform_msg.transform.translation.x = average_pose[0]
         self.transform_msg.transform.translation.y = average_pose[1]
         self.transform_msg.transform.translation.z = 0
-        [qx, qy, qz, qw] = quaternion_from_euler(0, 0, average_pose[2])
         self.transform_msg.transform.rotation.x = qx
         self.transform_msg.transform.rotation.y = qy
         self.transform_msg.transform.rotation.z = qz
@@ -136,7 +134,6 @@ class ParticleFilter:
 
         self.odom_msg.pose.pose.position.x = average_pose[0]
         self.odom_msg.pose.pose.position.y = average_pose[1]
-        [qx, qy, qz, qw] = quaternion_from_euler(0, 0, average_pose[2])
         self.odom_msg.pose.pose.orientation.x = qx
         self.odom_msg.pose.pose.orientation.y = qy
         self.odom_msg.pose.pose.orientation.z = qz
