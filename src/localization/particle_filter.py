@@ -10,6 +10,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from tf.transformations import euler_from_quaternion
 from tf.transformations import quaternion_from_euler
 from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import PoseArray, Pose
 import tf2_ros
 
 import numpy as np
@@ -86,6 +87,8 @@ class ParticleFilter:
         
         rospy.Timer(rospy.Duration(1.0/20.0), self.pose_odom_callback)
 
+        self.PoseArray_pub = rospy.Publisher("/pose_array", PoseArray, queue_size = 1)
+
 
     def lidar_callback(self, lidar_msg):
         observation = lidar_msg.ranges
@@ -145,6 +148,13 @@ class ParticleFilter:
         self.odom_msg.header.seq += 1
         self.odom_msg.header.stamp = rospy.Time.now()
         self.odom_pub.publish(self.odom_msg)
+        
+        PoseArray_msg = PoseArray()
+        PoseArray_msg.header.stamp = rospy.Time.now()
+        PoseArray_msg.poses = self.__particles_to_poses(self.particles)
+        self.PoseArray_pub.publish(PoseArray_msg)
+        
+
 
     def __get_average_pose(self):
         probabilities_square = self.probabilities**2
@@ -162,6 +172,22 @@ class ParticleFilter:
         average_sin = np.dot(np.sin(angles), probabilities)
         average_cos = np.dot(np.cos(angles), probabilities)
         return np.arctan2(average_sin, average_cos)
+
+    def __particles_to_poses(particles):
+        pose_array = []
+        for p in particles:
+            pose = Pose()
+            pose.position.x = p[0]
+            pose.position.y = p[1]
+            pose.position.z = 0
+            x, y, z, w = quaternion_from_euler(0, 0, p[2])
+            pose.quaternion.x = x
+            pose.quaternion.y = y
+            pose.quaternion.z = z
+            pose.quaternion.w = w
+            pose_array.append(pose)
+
+        return pose_array
 
 if __name__ == "__main__":
     rospy.init_node("particle_filter")
