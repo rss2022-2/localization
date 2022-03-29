@@ -41,7 +41,10 @@ class ParticleFilter:
         self.count = 0
 
         # Initialize the models
-        self.motion_model = MotionModel()
+        ax = rospy.get_param("~motion_model_ax", 0.5)
+        ay = rospy.get_param("~motion_model_ay", 0.5)
+        at = rospy.get_param("~motion_model_at", 0.5)
+        self.motion_model = MotionModel(ax, ay, at)
         self.sensor_model = SensorModel()
 
         # Implement the MCL algorithm

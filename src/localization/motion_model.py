@@ -2,17 +2,15 @@ import numpy as np
 
 class MotionModel:
 
-    def __init__(self):
+    def __init__(self, ax=0, ay=0, at=0):
 
         ####################################
         # TODO
         # Do any precomputation for the motion
         # model here.
-        self.a = [
-                    0.02,  # ax
-                    0.02,  # ay
-                    0.02,  # at
-                 ] 
+        self.ax = ax
+        self.ay = ay
+        self.at = at 
 
         ####################################
 
@@ -33,9 +31,9 @@ class MotionModel:
         res = np.zeros(3)
         abs_dx = dx*np.cos(t) - dy*np.sin(t)
         abs_dy = dx*np.sin(t) + dy*np.cos(t)
-        res[0] = x + MotionModel.__sample_normal(abs_dx, self.a[0])
-        res[1] = y + MotionModel.__sample_normal(abs_dy, self.a[1])
-        res[2] = t + MotionModel.__sample_normal(dt, self.a[2])
+        res[0] = x + MotionModel.__sample_normal(abs_dx, self.ax)
+        res[1] = y + MotionModel.__sample_normal(abs_dy, self.ay)
+        res[2] = t + MotionModel.__sample_normal(dt, self.at)
         return res
 
 

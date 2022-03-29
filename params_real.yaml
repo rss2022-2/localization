@@ -30,4 +30,4 @@ lidar_scale_to_map_scale: 1.0
 # Motion model
 motion_model_ax: 0.5
 motion_model_ay: 0.5
-motion_model_at: 0.5
+motion_model_at: 0.1
