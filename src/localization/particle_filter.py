@@ -206,8 +206,22 @@ class ParticleFilter:
 
         distance = np.sqrt(np.square(estimated_x - ground_x) + np.square(estimated_y - ground_y))
 
+        estimated_t = euler_from_quaternion([
+            estimated_odom_msg.pose.pose.orientation.x,
+            estimated_odom_msg.pose.pose.orientation.y,
+            estimated_odom_msg.pose.pose.orientation.z,
+            estimated_odom_msg.pose.pose.orientation.w
+        ])[2]
+
+        ground_t = euler_from_quaternion([
+            self.ground_odom_pose.pose.orientation.x,
+            self.ground_odom_pose.pose.orientation.y,
+            self.ground_odom_pose.pose.orientation.z,
+            self.ground_odom_pose.pose.orientation.w
+        ])[2]
+
         error_msg.distance_err = distance
-        error_msg.rotation_err = 0
+        error_msg.rotation_err = abs(ground_t - estimated_t)
         self.error_pub.publish(error_msg)
 
     @staticmethod    
