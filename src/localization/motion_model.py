@@ -9,9 +9,9 @@ class MotionModel:
         # Do any precomputation for the motion
         # model here.
         self.a = [
-                    0,  # ax
-                    0,  # ay
-                    0,  # at
+                    0.1,  # ax
+                    0.1,  # ay
+                    0.1,  # at
                  ] 
 
         ####################################
@@ -60,6 +60,6 @@ class MotionModel:
         
         ####################################
         # TODO
-        return [self.__sample_motion_model_odometry(particle, odometry) for particle in particles] 
+        return np.array([self.__sample_motion_model_odometry(particle, odometry) for particle in particles]) 
 
         ####################################
