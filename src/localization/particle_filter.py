@@ -7,16 +7,18 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from tf.transformations import euler_from_quaternion
 from tf.transformations import quaternion_from_euler
+from geometry_msgs.msg import TransformStamped
+import tf2_ros
 
 import numpy as np
 
 class ParticleFilter:
     NUM_PARTICLES = 50
+    INIT_PARTICLES = np.zeros((NUM_PARTICLES, 3))
 
     def __init__(self):
         # Get parameters
-        self.particle_filter_frame = \
-                rospy.get_param("~particle_filter_frame")
+        self.particle_filter_frame = rospy.get_param("~particle_filter_frame")
 
         # Initialize publishers/subscribers
         #
@@ -29,9 +31,35 @@ class ParticleFilter:
         #     information, and *not* use the pose component.
         scan_topic = rospy.get_param("~scan_topic", "/scan")
         odom_topic = rospy.get_param("~odom_topic", "/odom")
-        self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
-                                          self.lidar_callback, # TODO: Fill this in
-                                          queue_size=1)
+
+        # Initialize the models
+        self.motion_model = MotionModel()
+        self.sensor_model = SensorModel()
+
+        # Implement the MCL algorithm
+        # using the sensor model and the motion model
+        #
+        # Make sure you include some way to initialize
+        # your particles, ideally with some sort
+        # of interactive interface in rviz
+        #
+        # Publish a transformation frame between the map
+        # and the particle_filter_frame.
+        self.particles = ParticleFilter.INIT_PARTICLES
+        self.probabilities = np.ones(ParticleFilter.NUM_PARTICLES)/ParticleFilter.NUM_PARTICLES
+        self.odom_msg = Odometry()
+        self.odom_msg.header.seq = 0
+        self.odom_msg.header.frame_id = "map"
+        self.odom_msg.child_frame_id = self.particle_filter_frame
+        
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        self.transform_msg = TransformStamped()
+        self.transform_msg.header.frame_id = "map"
+        self.transform_msg.child_frame_id = self.particle_filter_frame
+
+        # self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
+        #                                   self.lidar_callback, # TODO: Fill this in
+        #                                   queue_size=1)
         self.odom_sub  = rospy.Subscriber(odom_topic, Odometry,
                                           self.odom_callback, # TODO: Fill this in
                                           queue_size=1)
@@ -53,60 +81,57 @@ class ParticleFilter:
         #     "/map" frame.
         self.odom_pub  = rospy.Publisher("/pf/pose/odom", Odometry, queue_size = 1)
         
-        # Initialize the models
-        self.motion_model = MotionModel()
-        self.sensor_model = SensorModel()
-
-        # Implement the MCL algorithm
-        # using the sensor model and the motion model
-        #
-        # Make sure you include some way to initialize
-        # your particles, ideally with some sort
-        # of interactive interface in rviz
-        #
-        # Publish a transformation frame between the map
-        # and the particle_filter_frame.
-        self.particles = np.zeros((ParticleFilter.NUM_PARTICLES, 3))
-        self.probabilities = np.ones(ParticleFilter.NUM_PARTICLES)/ParticleFilter.NUM_PARTICLES
-        self.odom_msg = Odometry()
-        self.odom_msg.header.seq = 0
-        self.odom_msg.header.frame_id = "/map"
-        self.odom_msg.child_frame_id = self.particle_filter_frame
-        
-        rospy.Timer(rospy.Duration(1), self.pose_odom_callback)
+        rospy.Timer(rospy.Duration(1.0), self.pose_odom_callback)
 
 
-    def lidar_callback(self, lidar_msg: LaserScan):
+    def lidar_callback(self, lidar_msg):
         observation = lidar_msg.ranges
         probabilities = self.sensor_model.evaluate(self.particles, observation)
-        normalized_probabilities = probabilities/sum(probabilities)
-        selected_indices = np.random.choice(ParticleFilter.NUM_PARTICLES, ParticleFilter.NUM_PARTICLES, p=normalized_probabilities)
-        self.particles = [self.particles[i] for i in selected_indices]
-        self.probabilities = [probabilities[i] for i in selected_indices]
+        if probabilities is not None:
+            normalized_probabilities = probabilities/sum(probabilities)
+            selected_indices = np.random.choice(ParticleFilter.NUM_PARTICLES, ParticleFilter.NUM_PARTICLES, p=normalized_probabilities)
+            self.particles = self.particles[selected_indices]
+            self.probabilities = probabilities[selected_indices]
 
 
-    def odom_callback(self, odom_msg: Odometry):
+    def odom_callback(self, odom_msg):
         dx = odom_msg.twist.twist.linear.x
         dy = odom_msg.twist.twist.linear.y
         dt = odom_msg.twist.twist.angular.z
         self.particles = self.motion_model.evaluate(self.particles, [dx, dy, dt])
 
 
-    def initpose_callback(self, pose_msg: PoseWithCovarianceStamped):
+    def initpose_callback(self, pose_msg):
         dx = pose_msg.pose.pose.position.x
-        dy = pose_msg.pose.pose.position.x
+        dy = pose_msg.pose.pose.position.y
         dt = euler_from_quaternion([
             pose_msg.pose.pose.orientation.x,
             pose_msg.pose.pose.orientation.y,
             pose_msg.pose.pose.orientation.z,
             pose_msg.pose.pose.orientation.w
-        ])[0]
-        self.particles = self.motion_model.evaluate(self.particles, [dx, dy, dt])
+        ])[2]
+        self.particles = self.motion_model.evaluate(ParticleFilter.INIT_PARTICLES, [dx, dy, dt])
 
+        rospy.loginfo(pose_msg)
+        rospy.loginfo(self.particles)
 
-    def pose_odom_callback(self):
-        average_pose = self.__get_average_pose()
         
+
+
+    def pose_odom_callback(self, event):
+        average_pose = self.__get_average_pose()
+
+        self.transform_msg.transform.translation.x = average_pose[0]
+        self.transform_msg.transform.translation.y = average_pose[1]
+        self.transform_msg.transform.translation.z = 0
+        [qx, qy, qz, qw] = quaternion_from_euler(0, 0, average_pose[2])
+        self.transform_msg.transform.rotation.x = qx
+        self.transform_msg.transform.rotation.y = qy
+        self.transform_msg.transform.rotation.z = qz
+        self.transform_msg.transform.rotation.w = qw
+        self.transform_msg.header.stamp = rospy.Time.now()
+        self.tf_broadcaster.sendTransform(self.transform_msg)
+
         self.odom_msg.pose.pose.position.x = average_pose[0]
         self.odom_msg.pose.pose.position.y = average_pose[1]
         [qx, qy, qz, qw] = quaternion_from_euler(0, 0, average_pose[2])
@@ -119,25 +144,24 @@ class ParticleFilter:
         self.odom_msg.header.stamp = rospy.Time.now()
         self.odom_pub.publish(self.odom_msg)
 
-
     def __get_average_pose(self):
         probabilities_square = self.probabilities**2
+
         average_probabilities = probabilities_square/sum(probabilities_square)
         weighted_xs = self.particles[:,0] * average_probabilities
         weighted_ys = self.particles[:,1] * average_probabilities
-        weighted_ts = self.particles[:,2] * average_probabilities
+        average_x = sum(weighted_xs)
+        average_y = sum(weighted_ys)
 
-        average_x = np.average(weighted_xs)
-        average_y = np.average(weighted_ys)
-        average_t = ParticleFilter.__get_average_angle(weighted_ts)
+        average_t = ParticleFilter.__get_average_angle(self.particles[:,0], average_probabilities)
 
         return [average_x, average_y, average_t]
     
     
     @staticmethod    
-    def __get_average_angle(angles):
-        average_sin = np.average(np.sin(angles))
-        average_cos = np.average(np.cos(angles))
+    def __get_average_angle(angles, probabilities):
+        average_sin = np.dot(np.sin(angles), probabilities)
+        average_cos = np.dot(np.cos(angles), probabilities)
         return np.arctan2(average_sin, average_cos)
 
 if __name__ == "__main__":
