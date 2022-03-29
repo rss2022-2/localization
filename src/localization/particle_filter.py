@@ -16,7 +16,7 @@ import tf2_ros
 import numpy as np
 
 class ParticleFilter:
-    NUM_PARTICLES = 50
+    NUM_PARTICLES = 10
     INIT_PARTICLES = np.zeros((NUM_PARTICLES, 3))
 
     def __init__(self):
@@ -148,7 +148,8 @@ class ParticleFilter:
         
         PoseArray_msg = PoseArray()
         PoseArray_msg.header.stamp = rospy.Time.now()
-        PoseArray_msg.poses = self.__particles_to_poses(self.particles)
+        PoseArray_msg.header.frame_id = "map"
+        PoseArray_msg.poses = ParticleFilter.__particles_to_poses(self.particles)
         self.PoseArray_pub.publish(PoseArray_msg)
         
 
@@ -170,6 +171,7 @@ class ParticleFilter:
         average_cos = np.dot(np.cos(angles), probabilities)
         return np.arctan2(average_sin, average_cos)
 
+    @staticmethod
     def __particles_to_poses(particles):
         pose_array = []
         for p in particles:
@@ -178,10 +180,10 @@ class ParticleFilter:
             pose.position.y = p[1]
             pose.position.z = 0
             x, y, z, w = quaternion_from_euler(0, 0, p[2])
-            pose.quaternion.x = x
-            pose.quaternion.y = y
-            pose.quaternion.z = z
-            pose.quaternion.w = w
+            pose.orientation.x = x
+            pose.orientation.y = y
+            pose.orientation.z = z
+            pose.orientation.w = w
             pose_array.append(pose)
 
         return pose_array

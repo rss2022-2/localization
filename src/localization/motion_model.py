@@ -9,9 +9,9 @@ class MotionModel:
         # Do any precomputation for the motion
         # model here.
         self.a = [
-                    1,  # ax
-                    1,  # ay
-                    1,  # at
+                    0.05,  # ax
+                    0.05,  # ay
+                    0.05,  # at
                  ] 
 
         ####################################
