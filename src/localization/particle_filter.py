@@ -11,6 +11,7 @@ from tf.transformations import euler_from_quaternion
 from tf.transformations import quaternion_from_euler
 from geometry_msgs.msg import TransformStamped
 from geometry_msgs.msg import PoseArray, Pose
+from localization.msg import PoseError
 import tf2_ros
 
 import numpy as np
@@ -69,6 +70,9 @@ class ParticleFilter:
         self.transform_msg.header.frame_id = "/map"
         self.transform_msg.child_frame_id = self.particle_filter_frame
 
+        # ground truth pose for error plot
+        self.ground_odom_pose = None
+
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
                                           self.lidar_callback, # TODO: Fill this in
                                           queue_size=1)
@@ -98,6 +102,8 @@ class ParticleFilter:
 
         self.PoseArray_pub = rospy.Publisher("/pose_array", PoseArray, queue_size = 1)
 
+        self.error_pub = rospy.Publisher("/pose_error", PoseError, queue_size=10)
+
 
     def lidar_callback(self, lidar_msg):
         if self.count % self.lidar_reduce_factor == 0:
@@ -123,7 +129,7 @@ class ParticleFilter:
         self.semaphore.acquire()
         self.particles = np.array(self.motion_model.evaluate(self.particles, [dx, dy, dt]))
         self.semaphore.release()
-
+        self.ground_odom_pose = odom_msg.pose
 
     def initpose_callback(self, pose_msg):
         dx = pose_msg.pose.pose.position.x
@@ -171,7 +177,7 @@ class ParticleFilter:
         PoseArray_msg.poses = ParticleFilter.__particles_to_poses(self.particles)
         self.semaphore.release()
         self.PoseArray_pub.publish(PoseArray_msg)
-        
+        self.error_publisher(self.odom_msg)
 
 
     def __get_average_pose(self):
@@ -186,7 +192,41 @@ class ParticleFilter:
 
         return [average_x, average_y, average_t]
     
-    
+    def error_publisher(self, estimated_odom_msg):
+        error_msg = PoseError()
+        if (self.ground_odom_pose is None):
+            error_msg.distance_err = 0
+            error_msg.rotation_err = 0
+            self.error_pub.publish(error_msg)
+            return
+
+        error_msg = PoseError()
+        estimated_x = estimated_odom_msg.pose.pose.position.x
+        estimated_y = estimated_odom_msg.pose.pose.position.y
+
+        ground_x = self.ground_odom_pose.pose.position.x
+        ground_y = self.ground_odom_pose.pose.position.y
+
+        distance = np.sqrt(np.square(estimated_x - ground_x) + np.square(estimated_y - ground_y))
+
+        estimated_t = euler_from_quaternion([
+            estimated_odom_msg.pose.pose.orientation.x,
+            estimated_odom_msg.pose.pose.orientation.y,
+            estimated_odom_msg.pose.pose.orientation.z,
+            estimated_odom_msg.pose.pose.orientation.w
+        ])[2]
+
+        ground_t = euler_from_quaternion([
+            self.ground_odom_pose.pose.orientation.x,
+            self.ground_odom_pose.pose.orientation.y,
+            self.ground_odom_pose.pose.orientation.z,
+            self.ground_odom_pose.pose.orientation.w
+        ])[2]
+
+        error_msg.distance_err = distance
+        error_msg.rotation_err = abs(ground_t - estimated_t)
+        self.error_pub.publish(error_msg)
+
     @staticmethod    
     def __get_average_angle(angles, probabilities):
         average_sin = np.dot(np.sin(angles), probabilities)
