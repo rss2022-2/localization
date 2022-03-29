@@ -16,7 +16,7 @@ import tf2_ros
 import numpy as np
 
 class ParticleFilter:
-    NUM_PARTICLES = 10
+    NUM_PARTICLES = 50
     INIT_PARTICLES = np.zeros((NUM_PARTICLES, 3))
 
     def __init__(self):
@@ -118,7 +118,7 @@ class ParticleFilter:
             pose_msg.pose.pose.orientation.z,
             pose_msg.pose.pose.orientation.w
         ])[2]
-        self.particles = self.motion_model.evaluate(ParticleFilter.INIT_PARTICLES, [dx, dy, dt])
+        self.particles = np.full((ParticleFilter.NUM_PARTICLES, 3), [dx, dy, dt])
 
 
     def pose_odom_callback(self, event):
