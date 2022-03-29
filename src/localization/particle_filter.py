@@ -25,7 +25,6 @@ class ParticleFilter:
         self.particle_filter_frame = rospy.get_param("~particle_filter_frame")
         self.num_particles = rospy.get_param("~num_particles", 50)
         self.lidar_reduce_factor = rospy.get_param("~lidar_reduce_factor", 10)
-
         # Initialize publishers/subscribers
         #
         #  *Important Note #1:* It is critical for your particle
@@ -42,9 +41,9 @@ class ParticleFilter:
         self.count = 0
 
         # Initialize the models
-        ax = rospy.get_param("~motion_model_ax", 0.5)
-        ay = rospy.get_param("~motion_model_ay", 0.5)
-        at = rospy.get_param("~motion_model_at", 0.5)
+        ax = rospy.get_param("~motion_model_ax", 0.1)
+        ay = rospy.get_param("~motion_model_ay", 0.1)
+        at = rospy.get_param("~motion_model_at", 0.05)
         self.motion_model = MotionModel(ax, ay, at)
         self.sensor_model = SensorModel()
 
@@ -107,28 +106,29 @@ class ParticleFilter:
 
     def lidar_callback(self, lidar_msg):
         if self.count % self.lidar_reduce_factor == 0:
-            self.semaphore.acquire()
-            observation = lidar_msg.ranges
-            probabilities = self.sensor_model.evaluate(self.particles, np.array(observation))
-            if probabilities is not None:
-                normalized_probabilities = probabilities/sum(probabilities)
-                selected_indices = np.random.choice(self.num_particles, self.num_particles, p=normalized_probabilities)
-                self.particles = self.particles[selected_indices]
-                self.probabilities = probabilities[selected_indices]
-            self.semaphore.release()
+            if self.semaphore.acquire():
+                observation = lidar_msg.ranges
+                probabilities = self.sensor_model.evaluate(self.particles, np.array(observation))
+                if probabilities is not None:
+                    normalized_probabilities = probabilities/sum(probabilities)
+                    selected_indices = np.random.choice(self.num_particles, self.num_particles, p=normalized_probabilities)
+                    self.particles = self.particles[selected_indices]
+                    self.probabilities = probabilities[selected_indices]
+                    self.particles = self.motion_model.evaluate(self.particles, [0.0, 0.0, 0.0])
+                self.semaphore.release()
         self.count += 1
         self.count = self.count % self.lidar_reduce_factor
 
 
     def odom_callback(self, odom_msg):
-        time_diff = odom_msg.header.stamp - self.odom_time
-        dx = odom_msg.twist.twist.linear.x * time_diff.to_sec()
-        dy = odom_msg.twist.twist.linear.y * time_diff.to_sec()
-        dt = odom_msg.twist.twist.angular.z * time_diff.to_sec()
-        self.odom_time = odom_msg.header.stamp
-        self.semaphore.acquire()
-        self.particles = np.array(self.motion_model.evaluate(self.particles, [dx, dy, dt]))
-        self.semaphore.release()
+        if self.semaphore.acquire():
+            time_diff = odom_msg.header.stamp - self.odom_time
+            dx = odom_msg.twist.twist.linear.x * time_diff.to_sec()
+            dy = odom_msg.twist.twist.linear.y * time_diff.to_sec()
+            dt = odom_msg.twist.twist.angular.z * time_diff.to_sec()
+            self.odom_time = odom_msg.header.stamp
+            self.particles = np.array(self.motion_model.evaluate(self.particles, [dx, dy, dt]))
+            self.semaphore.release()
         self.ground_odom_pose = odom_msg.pose
 
     def initpose_callback(self, pose_msg):
