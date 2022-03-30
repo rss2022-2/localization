@@ -109,6 +109,8 @@ class ParticleFilter:
         if self.count % self.lidar_reduce_factor == 0:
             # if self.semaphore.acquire():
             observation = lidar_msg.ranges
+            observation = [x if x != np.inf else lidar_msg.range_max for x in observation]
+            rospy.loginfo(observation)
             down_sampled_observation = ParticleFilter.__downsample(observation, self.sensor_model.num_beams_per_particle)
             probabilities = self.sensor_model.evaluate(self.particles, np.array(down_sampled_observation))
             if probabilities is not None:
