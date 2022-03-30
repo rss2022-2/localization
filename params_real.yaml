@@ -1,5 +1,5 @@
 # A reasonable number to start with
-num_particles: 200
+num_particles: 20
 
 # The number of lidar beams emitted from
 # each particle. This doesn't need to be
@@ -15,21 +15,21 @@ scan_theta_discretization: 500
 
 # The names of topics to listen and publish to
 map_topic: "/map"
-scan_topic: "/scan"
+scan_topic: "/scan_correction"
 odom_topic: "/odom"
 pose_topic: "/pose"
 
 # The frame you should publish your transform to
-particle_filter_frame: "/base_link_pf"
+particle_filter_frame: "/base_link"
 
 # Deterministic flag; set to true to remove all added noise
-deterministic: true
+deterministic: false
 
 lidar_scale_to_map_scale: 1.0
 
 # Motion model
-motion_model_ax: 0.5
-motion_model_ay: 0.5
-motion_model_at: 0.1
+motion_model_ax: 0.05
+motion_model_ay: 0.05
+motion_model_at: 0.01
 
 lidar_reduce_factor: 20
