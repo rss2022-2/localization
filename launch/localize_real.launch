@@ -2,4 +2,7 @@
   <node pkg="localization" type="particle_filter.py" name="particle_filter" output="screen">
     <rosparam command="load" file="$(find localization)/params_real.yaml"/>
   </node>
+
+  <arg name="map" default="$(find racecar_simulator)/maps/stata_basement.yaml"/>
+  <node pkg="map_server" name="map_server" type="map_server" args="$(arg map)"/>
 </launch>
