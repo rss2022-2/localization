@@ -15,6 +15,7 @@ from localization.msg import PoseError
 import tf2_ros
 
 import numpy as np
+from scipy.interpolate import interp1d
 
 #from threading import Semaphore
 
@@ -108,7 +109,8 @@ class ParticleFilter:
         if self.count % self.lidar_reduce_factor == 0:
             # if self.semaphore.acquire():
             observation = lidar_msg.ranges
-            probabilities = self.sensor_model.evaluate(self.particles, np.array(observation))
+            down_sampled_observation = ParticleFilter.__downsample(observation, self.sensor_model.num_beams_per_particle)
+            probabilities = self.sensor_model.evaluate(self.particles, np.array(down_sampled_observation))
             if probabilities is not None:
                 normalized_probabilities = probabilities/sum(probabilities)
                 selected_indices = np.random.choice(self.num_particles, self.num_particles, p=normalized_probabilities)
@@ -249,6 +251,14 @@ class ParticleFilter:
             pose_array.append(pose)
 
         return pose_array
+
+
+    @staticmethod
+    # Thanks to https://stackoverflow.com/q/53307107
+    def __downsample(array, npts):
+        interpolated = interp1d(np.arange(len(array)), array, axis = 0, fill_value = 'extrapolate')
+        downsampled = interpolated(np.linspace(0, len(array), npts))
+        return downsampled
 
 if __name__ == "__main__":
     rospy.init_node("particle_filter")
