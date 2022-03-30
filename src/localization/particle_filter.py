@@ -15,7 +15,6 @@ from localization.msg import PoseError
 import tf2_ros
 
 import numpy as np
-from scipy.interpolate import interp1d
 
 #from threading import Semaphore
 
@@ -24,8 +23,9 @@ class ParticleFilter:
     def __init__(self):
         # Get parameters
         self.particle_filter_frame = rospy.get_param("~particle_filter_frame")
-        self.num_particles = rospy.get_param("~num_particles", 50)
-        self.lidar_reduce_factor = rospy.get_param("~lidar_reduce_factor", 10)
+        self.num_particles = rospy.get_param("~num_particles", 200)
+        self.lidar_reduce_factor = rospy.get_param("~lidar_reduce_factor", 5)
+        self.num_beams = rospy.get_param("~num_beams_per_particle", 100)
         # Initialize publishers/subscribers
         #
         #  *Important Note #1:* It is critical for your particle
@@ -42,10 +42,7 @@ class ParticleFilter:
         self.count = 0
 
         # Initialize the models
-        ax = rospy.get_param("~motion_model_ax", 0.1)
-        ay = rospy.get_param("~motion_model_ay", 0.1)
-        at = rospy.get_param("~motion_model_at", 0.05)
-        self.motion_model = MotionModel(ax, ay, at)
+        self.motion_model = MotionModel()
         self.sensor_model = SensorModel()
 
         # Implement the MCL algorithm
@@ -60,6 +57,7 @@ class ParticleFilter:
         self.init_particles = np.zeros((self.num_particles, 3))
         self.particles = self.init_particles
         self.probabilities = np.ones(self.num_particles)/self.num_particles
+        self.norm_probabilities = np.ones(self.num_particles)/self.num_particles
         self.odom_msg = Odometry()
         self.odom_msg.header.seq = 0
         self.odom_msg.header.frame_id = "/map"
@@ -97,8 +95,6 @@ class ParticleFilter:
         #     odometry you publish here should be with respect to the
         #     "/map" frame.
         self.odom_pub  = rospy.Publisher("/pf/pose/odom", Odometry, queue_size = 1)
-        
-        rospy.Timer(rospy.Duration(1.0/20.0), self.pose_odom_callback)
 
         self.PoseArray_pub = rospy.Publisher("/pose_array", PoseArray, queue_size = 1)
 
@@ -108,17 +104,16 @@ class ParticleFilter:
     def lidar_callback(self, lidar_msg):
         if self.count % self.lidar_reduce_factor == 0:
             # if self.semaphore.acquire():
-            observation = lidar_msg.ranges
-            observation = [x if x != np.inf else lidar_msg.range_max for x in observation]
-            rospy.loginfo(observation)
-            down_sampled_observation = ParticleFilter.__downsample(observation, self.sensor_model.num_beams_per_particle)
-            probabilities = self.sensor_model.evaluate(self.particles, np.array(down_sampled_observation))
+            observation = np.array(lidar_msg.ranges)
+            down_sampled_observation = observation[np.linspace(0, len(observation) - 1, self.num_beams, dtype=int)]
+            probabilities = self.sensor_model.evaluate(self.particles, down_sampled_observation)
             if probabilities is not None:
-                normalized_probabilities = probabilities/sum(probabilities)
-                selected_indices = np.random.choice(self.num_particles, self.num_particles, p=normalized_probabilities)
+                self.norm_probabilities = probabilities/sum(probabilities)
+                selected_indices = np.random.choice(self.num_particles, self.num_particles, p=self.norm_probabilities)
                 self.particles = self.particles[selected_indices]
                 self.probabilities = probabilities[selected_indices]
-                self.particles = self.motion_model.evaluate(self.particles, [0.0, 0.0, 0.0])
+                self.particles = self.motion_model.evaluate_noise(self.particles, [0.0, 0.0, 0.0], [0.025, 0.025, 0.005])
+                self.pose_odom_update()
             # self.semaphore.release()
         self.count += 1
         self.count = self.count % self.lidar_reduce_factor
@@ -134,6 +129,7 @@ class ParticleFilter:
         self.particles = np.array(self.motion_model.evaluate(self.particles, [dx, dy, dt]))
         # self.semaphore.release()
         self.ground_odom_pose = odom_msg.pose
+        self.pose_odom_update()
 
     def initpose_callback(self, pose_msg):
         dx = pose_msg.pose.pose.position.x
@@ -149,7 +145,7 @@ class ParticleFilter:
         # self.semaphore.release()
 
 
-    def pose_odom_callback(self, event):
+    def pose_odom_update(self):
         average_pose = self.__get_average_pose()
         [qx, qy, qz, qw] = quaternion_from_euler(0, 0, average_pose[2])
 
@@ -170,28 +166,25 @@ class ParticleFilter:
         self.odom_msg.pose.pose.orientation.z = qz
         self.odom_msg.pose.pose.orientation.w = qw
 
-        self.odom_msg.header.seq += 1
+        # self.odom_msg.header.seq += 1
         self.odom_msg.header.stamp = rospy.Time.now()
         self.odom_pub.publish(self.odom_msg)
         
-        PoseArray_msg = PoseArray()
-        PoseArray_msg.header.stamp = rospy.Time.now()
-        PoseArray_msg.header.frame_id = "/map"
-        # self.semaphore.acquire()
-        PoseArray_msg.poses = ParticleFilter.__particles_to_poses(self.particles)
-        # self.semaphore.release()
-        self.PoseArray_pub.publish(PoseArray_msg)
-        self.error_publisher(self.odom_msg)
+        # PoseArray_msg = PoseArray()
+        # PoseArray_msg.header.stamp = rospy.Time.now()
+        # PoseArray_msg.header.frame_id = "/map"
+        # # self.semaphore.acquire()
+        # PoseArray_msg.poses = ParticleFilter.__particles_to_poses(self.particles)
+        # # self.semaphore.release()
+        # self.PoseArray_pub.publish(PoseArray_msg)
+        # self.error_publisher(self.odom_msg)
 
 
     def __get_average_pose(self):
         # self.semaphore.acquire()
-        probabilities_square = self.probabilities**2
-
-        average_probabilities = probabilities_square/sum(probabilities_square)
-        average_x = np.dot(self.particles[:,0], average_probabilities)
-        average_y = np.dot(self.particles[:,1], average_probabilities)
-        average_t = ParticleFilter.__get_average_angle(self.particles[:,2], average_probabilities)
+        average_t = ParticleFilter.__get_average_angle(self.particles[:,2], self.norm_probabilities)
+        average_x = np.dot(self.particles[:,0], self.norm_probabilities) - 0.275*np.cos(average_t)
+        average_y = np.dot(self.particles[:,1], self.norm_probabilities) - 0.275*np.sin(average_t)
         # self.semaphore.release()
 
         return [average_x, average_y, average_t]
@@ -254,13 +247,6 @@ class ParticleFilter:
 
         return pose_array
 
-
-    @staticmethod
-    # Thanks to https://stackoverflow.com/q/53307107
-    def __downsample(array, npts):
-        interpolated = interp1d(np.arange(len(array)), array, axis = 0, fill_value = 'extrapolate')
-        downsampled = interpolated(np.linspace(0, len(array), npts))
-        return downsampled
 
 if __name__ == "__main__":
     rospy.init_node("particle_filter")
