@@ -1,5 +1,5 @@
 # A reasonable number to start with
-num_particles: 200
+num_particles: 25
 
 # The number of lidar beams emitted from
 # each particle. This doesn't need to be
@@ -27,4 +27,6 @@ deterministic: false
 
 lidar_scale_to_map_scale: 1.0
 
-lidar_reduce_factor: 5
+lidar_reduce_factor: 1
+
+use_thread: true

@@ -21,7 +21,7 @@ class MotionModel:
 
     @staticmethod
     def __sample_normal(val, a):
-        return val - np.random.normal(scale=a)
+        return val - val*np.random.normal(scale=a) - np.random.normal(scale=a/5)
 
     @staticmethod
     def __sample_motion_model_odometry(position, odometry, a, deterministic = False):

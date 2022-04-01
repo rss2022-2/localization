@@ -1,5 +1,5 @@
 # A reasonable number to start with
-num_particles: 20
+num_particles: 100
 
 # The number of lidar beams emitted from
 # each particle. This doesn't need to be
@@ -16,7 +16,7 @@ scan_theta_discretization: 500
 # The names of topics to listen and publish to
 map_topic: "/map"
 scan_topic: "/scan_correction"
-odom_topic: "/odom"
+odom_topic: "/vesc/odom"
 pose_topic: "/pose"
 
 # The frame you should publish your transform to
@@ -28,8 +28,10 @@ deterministic: false
 lidar_scale_to_map_scale: 1.0
 
 # Motion model
-motion_model_ax: 0.05
-motion_model_ay: 0.05
-motion_model_at: 0.01
+motion_model_ax: 0.025
+motion_model_ay: 0.025
+motion_model_at: 0.005
 
-lidar_reduce_factor: 20
+lidar_reduce_factor: 10
+
+use_thread: true
