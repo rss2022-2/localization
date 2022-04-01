@@ -19,9 +19,9 @@ class MotionModel:
         ####################################
 
 
-    @staticmethod
-    def __sample_normal(val, a):
-        return val - val*np.random.normal(scale=a) - np.random.normal(scale=a/5)
+    # @staticmethod
+    # def __sample_normal(val, a):
+    #     return val - val*np.random.normal(scale=a)
 
     @staticmethod
     def __sample_motion_model_odometry(position, odometry, a, deterministic = False):
@@ -34,9 +34,9 @@ class MotionModel:
         dt = odometry[2]
         
         if not deterministic:
-            dx += np.random.normal(scale=a[0])
-            dy += np.random.normal(scale=a[1])
-            dt += np.random.normal(scale=a[2])
+            dx += dx*np.random.normal(scale=a[0])
+            dy += dy*np.random.normal(scale=a[1])
+            dt += dt*np.random.normal(scale=a[2])
 
         res = np.zeros(3)
         abs_dx = dx*np.cos(t) - dy*np.sin(t)
@@ -46,6 +46,14 @@ class MotionModel:
         res[1] = y + abs_dy
         res[2] = t + dt
         return res
+    
+    @staticmethod
+    def __add_noise(position, a):
+        x = position[0] + np.random.normal(scale=a[0])
+        y = position[1] + np.random.normal(scale=a[1])
+        t = position[2] + np.random.normal(scale=a[2])
+        
+        return np.array([x, y, t])
 
 
     def evaluate(self, particles, odometry):
@@ -74,7 +82,7 @@ class MotionModel:
         ####################################
 
     
-    def evaluate_noise(self, particles, odometry, a):
+    def add_noise(self, particles):
         """
         """
-        return np.array([self.__sample_motion_model_odometry(particle, odometry, a) for particle in particles]) 
+        return np.array([self.__add_noise(particle) for particle in particles]) 

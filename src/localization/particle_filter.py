@@ -116,7 +116,7 @@ class ParticleFilter:
                     selected_indices = np.random.choice(self.num_particles, self.num_particles, p=self.norm_probabilities)
                     self.particles = self.particles[selected_indices]
                     self.probabilities = probabilities[selected_indices]
-                    self.particles = self.motion_model.evaluate_noise(self.particles, [0.0, 0.0, 0.0], [0.05, 0.05, 0.0001])
+                    self.particles = self.motion_model.add_noise(self.particles, [0.05, 0.05, 0.0001])
                     self.pose_odom_update()
                 if self.use_thread:
                     self.semaphore.release()
