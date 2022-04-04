@@ -1,5 +1,5 @@
 # A reasonable number to start with
-num_particles: 200
+num_particles: 25
 
 # The number of lidar beams emitted from
 # each particle. This doesn't need to be
@@ -23,13 +23,10 @@ pose_topic: "/pose"
 particle_filter_frame: "/base_link_pf"
 
 # Deterministic flag; set to true to remove all added noise
-deterministic: true
+deterministic: false
 
 lidar_scale_to_map_scale: 1.0
 
-# Motion model
-motion_model_ax: 0.025
-motion_model_ay: 0.025
-motion_model_at: 0.025
+lidar_reduce_factor: 1
 
-lidar_reduce_factor: 10
+use_thread: true
