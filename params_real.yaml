@@ -28,10 +28,10 @@ deterministic: false
 lidar_scale_to_map_scale: 1.0
 
 # Motion model
-motion_model_ax: 0.025
-motion_model_ay: 0.025
-motion_model_at: 0.005
+motion_model_ax: 0.5
+motion_model_ay: 0.5
+motion_model_at: 0.15
 
-lidar_reduce_factor: 10
+lidar_reduce_factor: 5
 
 use_thread: true

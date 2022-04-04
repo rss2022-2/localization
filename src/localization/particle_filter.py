@@ -78,9 +78,9 @@ class ParticleFilter:
         self.laser_sub = rospy.Subscriber(scan_topic, LaserScan,
                                           self.lidar_callback, # TODO: Fill this in
                                           queue_size=1)
-        #self.odom_sub  = rospy.Subscriber(odom_topic, Odometry,
-        #                                  self.odom_callback, # TODO: Fill this in
-        #                                  queue_size=1)
+        self.odom_sub  = rospy.Subscriber(odom_topic, Odometry,
+                                          self.odom_callback, # TODO: Fill this in
+                                          queue_size=1)
         self.odom_time = rospy.Time.now()
 
         #  *Important Note #2:* You must respond to pose
@@ -116,7 +116,7 @@ class ParticleFilter:
                     selected_indices = np.random.choice(self.num_particles, self.num_particles, p=self.norm_probabilities)
                     self.particles = self.particles[selected_indices]
                     self.probabilities = probabilities[selected_indices]
-                    self.particles = self.motion_model.add_noise(self.particles, [0.05, 0.05, 0.0001])
+                    self.particles = self.motion_model.add_noise(self.particles, [0.15, 0.15, 0.3])
                     self.pose_odom_update()
                 if self.use_thread:
                     self.semaphore.release()

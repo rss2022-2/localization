@@ -82,7 +82,7 @@ class MotionModel:
         ####################################
 
     
-    def add_noise(self, particles):
+    def add_noise(self, particles, a):
         """
         """
-        return np.array([self.__add_noise(particle) for particle in particles]) 
+        return np.array([self.__add_noise(particle, a) for particle in particles]) 
