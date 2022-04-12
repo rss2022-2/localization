@@ -1,5 +1,5 @@
 # A reasonable number to start with
-num_particles: 100
+num_particles: 400
 
 # The number of lidar beams emitted from
 # each particle. This doesn't need to be
@@ -28,10 +28,16 @@ deterministic: false
 lidar_scale_to_map_scale: 1.0
 
 # Motion model
-motion_model_ax: 0.5
-motion_model_ay: 0.5
-motion_model_at: 0.15
+motion_model_ax: 0.25
+motion_model_ay: 0.15
+motion_model_at: 0.16
 
-lidar_reduce_factor: 5
+lidar_reduce_factor: 10
 
 use_thread: true
+
+angle_step: 9
+
+max_viz_particles: 60
+squash_factor: 2.2
+do_viz: False

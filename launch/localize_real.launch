@@ -3,6 +3,6 @@
     <rosparam command="load" file="$(find localization)/params_real.yaml"/>
   </node>
 
-  <arg name="map" default="$(find racecar_simulator)/maps/stata_basement.yaml"/>
+  <arg name="map" default="$(find localization)/maps/basement_fixed.map.yaml"/>
   <node pkg="map_server" name="map_server" type="map_server" args="$(arg map)"/>
 </launch>

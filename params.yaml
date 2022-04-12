@@ -27,6 +27,6 @@ deterministic: false
 
 lidar_scale_to_map_scale: 1.0
 
-lidar_reduce_factor: 1
+lidar_reduce_factor: 2
 
 use_thread: true

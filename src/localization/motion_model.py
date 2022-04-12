@@ -15,46 +15,9 @@ class MotionModel:
         ay = rospy.get_param("~motion_model_ay", 0.025)
         at = rospy.get_param("~motion_model_at", 0.005)
         self.a = [ax, ay, at]
+        self.local_deltas = None
 
         ####################################
-
-
-    # @staticmethod
-    # def __sample_normal(val, a):
-    #     return val - val*np.random.normal(scale=a)
-
-    @staticmethod
-    def __sample_motion_model_odometry(position, odometry, a, deterministic = False):
-        x = position[0]
-        y = position[1]
-        t = position[2]
-
-        dx = odometry[0]
-        dy = odometry[1]
-        dt = odometry[2]
-        
-        if not deterministic:
-            dx += dx*np.random.normal(scale=a[0])
-            dy += dy*np.random.normal(scale=a[1])
-            dt += dt*np.random.normal(scale=a[2])
-
-        res = np.zeros(3)
-        abs_dx = dx*np.cos(t) - dy*np.sin(t)
-        abs_dy = dx*np.sin(t) + dy*np.cos(t)
-        
-        res[0] = x + abs_dx
-        res[1] = y + abs_dy
-        res[2] = t + dt
-        return res
-    
-    @staticmethod
-    def __add_noise(position, a):
-        x = position[0] + np.random.normal(scale=a[0])
-        y = position[1] + np.random.normal(scale=a[1])
-        t = position[2] + np.random.normal(scale=a[2])
-        
-        return np.array([x, y, t])
-
 
     def evaluate(self, particles, odometry):
         """
@@ -76,8 +39,23 @@ class MotionModel:
         """
         
         ####################################
-        # TODO
-        return np.array([MotionModel.__sample_motion_model_odometry(particle, odometry, self.a, self.deterministic) for particle in particles]) 
+        N = particles.shape[0]
+        cosines = np.cos(particles[:,2])
+        sines = np.sin(particles[:,2])
+
+        if self.local_deltas is None: self.local_deltas = np.zeros((N,3))
+        self.local_deltas[:,0] = cosines*odometry[0] - sines*odometry[1]
+        self.local_deltas[:,1] = sines*odometry[0] + cosines*odometry[1]
+        self.local_deltas[:,2] = odometry[2]
+
+        particles[:,:] += self.local_deltas
+
+        if not self.deterministic:
+            particles[:,0] += odometry[0]*np.random.normal(loc=0.0,scale=self.a[0],size=N)
+            particles[:,1] += odometry[1]*np.random.normal(loc=0.0,scale=self.a[1],size=N)
+            particles[:,2] += odometry[2]*np.random.normal(loc=0.0,scale=self.a[2],size=N) + np.random.normal(loc=0.0,scale=self.a[2],size=N)/3
+
+        return particles
 
         ####################################
 
@@ -85,4 +63,10 @@ class MotionModel:
     def add_noise(self, particles, a):
         """
         """
-        return np.array([self.__add_noise(particle, a) for particle in particles]) 
+        N = particles.shape[0]
+        particles[:,0] += np.random.normal(loc=0.0,scale=a[0],size=N)
+        particles[:,1] += np.random.normal(loc=0.0,scale=a[1],size=N)
+        particles[:,2] += np.random.normal(loc=0.0,scale=a[2],size=N)
+
+        return particles
+        
